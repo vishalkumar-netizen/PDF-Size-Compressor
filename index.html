@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Desired Size Compressor</title>
+    
+    <!-- PDF Processing Libraries -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <style>
+        :root {
+            /* Enhanced Readability Colors */
+            --bg-color: #e2e8f0; 
+            --card-bg: #ffffff;
+            --primary: #1d4ed8;
+            --primary-hover: #1e40af;
+            --text-main: #0f172a; /* Deep near-black for high contrast */
+            --text-muted: #334155; /* Darker gray for readable secondary text */
+            --border-color: #cbd5e1;
+            --success: #059669;
+            --error: #dc2626;
+            --info-bg: #e0f2fe;
+            --info-text: #0c4a6e;
+            --info-border: #bae6fd;
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+            font-size: 16px; /* Base size increase */
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            width: 100%;
+            max-width: 600px;
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Drag & Drop Zone */
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius);
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background-color: #f8fafc;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--primary);
+            background-color: #eff6ff;
+        }
+
+        .drop-zone svg {
+            width: 48px;
+            height: 48px;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone p {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone span {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .drop-zone .hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 1rem;
+            display: block;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-info {
+            display: none;
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .file-info.active {
+            display: flex;
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0; /* allows text truncation if needed */
+        }
+
+        .file-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            word-break: break-all;
+            color: var(--text-main);
+        }
+
+        .file-size {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+        }
+
+        .btn-remove {
+            background: none;
+            border: none;
+            color: var(--error);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 0.5rem;
+        }
+
+        /* Modes */
+        .settings-panel {
+            margin-bottom: 1.5rem;
+            opacity: 0.5;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .settings-panel.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            background: #f1f5f9;
+            padding: 0.35rem;
+            border-radius: 8px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 0.6rem;
+            border: none;
+            background: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mode-btn.active {
+            background: var(--card-bg);
+            color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .mode-content {
+            display: none;
+            padding: 1.25rem;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .mode-content.active {
+            display: block;
+        }
+
+        /* Inputs */
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        input[type="number"], select {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+            color: var(--text-main);
+            background-color: var(--card-bg);
+        }
+        
+        input[type="number"]:focus, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-top: 1rem;
+            accent-color: var(--primary);
+        }
+
+        .range-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-top: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        .smart-text {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Action Button */
+        .btn-main {
+            width: 100%;
+            padding: 1rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-main:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-main:disabled {
+            background-color: var(--border-color);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        /* Messages */
+        .message-box {
+            display: none;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+        }
+
+        .error-message {
+            color: var(--error);
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+        }
+
+        .warning-message {
+            color: #92400e;
+            background-color: #fffbeb;
+            border: 1px solid #fde68a;
+        }
+
+        .info-message {
+            color: var(--info-text);
+            background-color: var(--info-bg);
+            border: 1px solid var(--info-border);
+        }
+
+        /* Progress & Results */
+        .progress-container {
+            display: none;
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background-color: var(--border-color);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .results {
+            display: none;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-box {
+            background: #f8fafc;
+            padding: 1.25rem 0.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.4rem;
+            font-weight: 600;
+        }
+
+        .success-text {
+            color: var(--success);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn-outline {
+            flex: 1;
+            padding: 0.75rem;
+            background-color: transparent;
+            color: var(--text-main);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-outline:hover {
+            background-color: #f1f5f9;
+            border-color: #94a3b8;
+        }
+
+        .info-container {
+            background-color: var(--card-bg);
+            width: 100%;
+            max-width: 600px;
+            border-radius: var(--radius);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        .info-container h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+        }
+
+        .info-container ul, .info-container ol {
+            padding-left: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .info-container li {
+            margin-bottom: 0.5rem;
+        }
+
+        .info-container li strong {
+            color: var(--text-main);
+        }
+
+        /* Responsive Improvements */
+        @media (max-width: 600px) {
+            body {
+                padding: 1rem 0.5rem;
+            }
+            .container, .info-container {
+                padding: 1.5rem 1rem;
+                border-radius: 10px;
+            }
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            .action-buttons {
+                flex-direction: column;
+            }
+            .mode-selector {
+                flex-direction: column;
+            }
+            .input-group {
+                flex-direction: column;
+            }
+            h1 {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div>
+    <div class="container">
+        <h1>PDF Desired Size Compressor</h1>
+        <p class="subtitle">Intelligent client-side PDF optimization</p>
+
+        <!-- Upload Area -->
+        <div class="drop-zone" id="dropZone">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            <p>Drag & Drop your PDF here</p>
+            <span>or click to browse files</span>
+            <span class="hint">No file size limits. Processing speed depends on your device capabilities.</span>
+            <input type="file" id="fileInput" accept="application/pdf">
+        </div>
+
+        <!-- Active File Info -->
+        <div class="file-info" id="fileInfo">
+            <div class="file-details">
+                <span class="file-name" id="fileName">document.pdf</span>
+                <span class="file-size" id="fileSize">2.5 MB</span>
+            </div>
+            <button class="btn-remove" id="btnRemove">Remove</button>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel" id="settingsPanel">
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="1">Desired Size</button>
+                <button class="mode-btn" data-mode="2">Percentage</button>
+                <button class="mode-btn" data-mode="3">Smart Auto</button>
+            </div>
+
+            <!-- Mode 1: Desired Size -->
+            <div class="mode-content active" id="mode1">
+                <label style="font-size: 0.95rem; font-weight: 600;">Target File Size:</label>
+                <div class="input-group">
+                    <input type="number" id="targetSizeInput" placeholder="e.g. 500" min="1">
+                    <select id="targetSizeUnit">
+                        <option value="KB">KB</option>
+                        <option value="MB">MB</option>
+                    </select>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.75rem; line-height: 1.4;">
+                    * We will compress as close to this size as possible without unnecessarily destroying readability.
+                </p>
+            </div>
+
+            <!-- Mode 2: Percentage -->
+            <div class="mode-content" id="mode2">
+                <label style="font-size: 0.95rem; font-weight: 600;">Reduction Level:</label>
+                <input type="range" id="percentSlider" min="10" max="100" value="70">
+                <div class="range-label">
+                    <span>Aggressive (10%)</span>
+                    <span id="percentLabel" style="color: var(--primary); font-weight: 700;">70% of original</span>
+                    <span>Light (100%)</span>
+                </div>
+            </div>
+
+            <!-- Mode 3: Smart Auto -->
+            <div class="mode-content" id="mode3">
+                <p class="smart-text">
+                    <strong>Smart Optimization:</strong> Intelligently strips metadata, removes structural bloat, and re-encodes streams without rasterizing pages. 
+                    <br><br>
+                    <em>Best for text-heavy documents requiring 100% original visual fidelity.</em>
+                </p>
+            </div>
+        </div>
+
+        <!-- Dynamic Feedback Messages -->
+        <div class="message-box error-message" id="errorMessage"></div>
+        <div class="message-box info-message" id="deviceWarning">
+            <strong>Note on Large Files:</strong> You have uploaded a large document. The file size is fully supported, but compression may take a few moments depending on your device's memory and processor speed.
+        </div>
+        <div class="message-box warning-message" id="warningMessage">
+            <strong>Warning:</strong> The target size is extremely small compared to the original. The tool will force the compression, but <strong>visual quality will be noticeably degraded</strong>.
+        </div>
+
+        <button class="btn-main" id="btnCompress" disabled>Compress PDF</button>
+
+        <!-- Progress UI -->
+        <div class="progress-container" id="progressContainer">
+            <p style="font-weight: 600; font-size: 1rem; color: var(--text-main);">Processing PDF...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Initializing...</div>
+        </div>
+
+        <!-- Results UI -->
+        <div class="results" id="resultsArea">
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-value" id="resOriginal">0 MB</div>
+                    <div class="stat-label">Original Size</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="resNew">0 MB</div>
+                    <div class="stat-label">New Size</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value success-text" id="resSaved">0%</div>
+                    <div class="stat-label">Saved</div>
+                </div>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn-outline" id="btnPreview">Preview PDF</button>
+                <button class="btn-main" id="btnDownload">Download PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- How to Use Section -->
+    <div class="info-container">
+        <h2>How to Use This Tool</h2>
+        <ol>
+            <li><strong>Upload File:</strong> Drag and drop your PDF or click the dashed area to browse. (No size limits).</li>
+            <li><strong>Select Mode:</strong>
+                <ul>
+                    <li><em>Desired Size:</em> Enter the exact target file size you need (e.g., 500 KB or 2 MB). <br><small>Note: If you request a massive reduction, the tool prioritizes file size over visual quality.</small></li>
+                    <li><em>Percentage:</em> Reduce the file size by a relative slider ratio.</li>
+                    <li><em>Smart Auto:</em> The safest method. It cleans up hidden metadata and bloat while keeping 100% of the original visual quality.</li>
+                </ul>
+            </li>
+            <li><strong>Compress:</strong> Click the "Compress PDF" button. Everything happens securely inside your browser; no data is sent to a server.</li>
+            <li><strong>Save:</strong> Preview your optimized PDF or download it directly to your device.</li>
+        </ol>
+    </div>
+</div>
+
+<script>
+    // --- Configuration & Library Init ---
+    const { PDFDocument } = PDFLib;
+    
+    // Set up pdf.js worker for client-side rendering (used for deep compression)
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // --- DOM Elements ---
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const btnRemove = document.getElementById('btnRemove');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const btnCompress = document.getElementById('btnCompress');
+    const modeBtns = document.querySelectorAll('.mode-btn');
+    const modeContents = document.querySelectorAll('.mode-content');
+    const percentSlider = document.getElementById('percentSlider');
+    const percentLabel = document.getElementById('percentLabel');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const resultsArea = document.getElementById('resultsArea');
+    const errorMessage = document.getElementById('errorMessage');
+    const warningMessage = document.getElementById('warningMessage');
+    const deviceWarning = document.getElementById('deviceWarning');
+
+    // Result Elements
+    const resOriginal = document.getElementById('resOriginal');
+    const resNew = document.getElementById('resNew');
+    const resSaved = document.getElementById('resSaved');
+    const btnDownload = document.getElementById('btnDownload');
+    const btnPreview = document.getElementById('btnPreview');
+
+    // --- State Variables ---
+    let currentFile = null;
+    let currentFileBuffer = null;
+    let compressedBlobUrl = null;
+    let activeMode = 1; // 1: Target, 2: Percent, 3: Auto
+
+    // --- Utility Functions ---
+    const formatBytes = (bytes, decimals = 2) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    };
+
+    const showError = (msg) => {
+        errorMessage.textContent = msg;
+        errorMessage.style.display = 'block';
+        setTimeout(() => { errorMessage.style.display = 'none'; }, 6000);
+    };
+
+    const updateProgress = (percent, text) => {
+        progressFill.style.width = `${percent}%`;
+        progressText.textContent = text;
+    };
+
+    // --- Event Listeners ---
+    
+    // Drag and Drop
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    btnRemove.addEventListener('click', resetUI);
+
+    // Mode Selection
+    modeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            modeBtns.forEach(b => b.classList.remove('active'));
+            modeContents.forEach(c => c.classList.remove('active'));
+            
+            btn.classList.add('active');
+            activeMode = parseInt(btn.dataset.mode);
+            document.getElementById(`mode${activeMode}`).classList.add('active');
+        });
+    });
+
+    percentSlider.addEventListener('input', (e) => {
+        percentLabel.textContent = `${e.target.value}% of original`;
+    });
+
+    btnCompress.addEventListener('click', processCompression);
+
+    btnPreview.addEventListener('click', () => {
+        if (compressedBlobUrl) window.open(compressedBlobUrl, '_blank');
+    });
+
+    // --- Core Logic ---
+
+    function handleFile(file) {
+        if (file.type !== 'application/pdf') {
+            showError('Please select a valid PDF file.');
+            return;
+        }
+
+        currentFile = file;
+        fileName.textContent = file.name;
+        fileSize.textContent = formatBytes(file.size);
+        
+        dropZone.style.display = 'none';
+        fileInfo.classList.add('active');
+        settingsPanel.classList.add('active');
+        btnCompress.disabled = false;
+        resultsArea.style.display = 'none';
+        errorMessage.style.display = 'none';
+
+        // Trigger performance info warning if file is exceptionally large (> 20MB)
+        if (file.size > 20 * 1024 * 1024) {
+            deviceWarning.style.display = 'block';
+        } else {
+            deviceWarning.style.display = 'none';
+        }
+
+        // Read file into memory early
+        const reader = new FileReader();
+        reader.onload = (e) => { currentFileBuffer = e.target.result; };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function resetUI() {
+        currentFile = null;
+        currentFileBuffer = null;
+        fileInput.value = '';
+        dropZone.style.display = 'block';
+        fileInfo.classList.remove('active');
+        settingsPanel.classList.remove('active');
+        btnCompress.disabled = true;
+        resultsArea.style.display = 'none';
+        progressContainer.style.display = 'none';
+        warningMessage.style.display = 'none';
+        deviceWarning.style.display = 'none';
+        
+        if (compressedBlobUrl) {
+            URL.revokeObjectURL(compressedBlobUrl);
+            compressedBlobUrl = null;
+        }
+    }
+
+    async function processCompression() {
+        if (!currentFileBuffer) return;
+
+        // Determine Target Bytes based on mode
+        let targetBytes = null;
+        const originalBytes = currentFile.size;
+
+        if (activeMode === 1) {
+            const inputVal = parseFloat(document.getElementById('targetSizeInput').value);
+            const unit = document.getElementById('targetSizeUnit').value;
+            if (!inputVal || inputVal <= 0) {
+                showError('Please enter a valid target size.');
+                return;
+            }
+            targetBytes = unit === 'MB' ? inputVal * 1024 * 1024 : inputVal * 1024;
+            
+            if (targetBytes >= originalBytes) {
+                showError('Target size must be smaller than the original size.');
+                return;
+            }
+
+            // Show warning for extreme compression (< 15% of original)
+            if (targetBytes < originalBytes * 0.15) {
+                warningMessage.style.display = 'block';
+            } else {
+                warningMessage.style.display = 'none';
+            }
+        } else if (activeMode === 2) {
+            const percent = parseInt(percentSlider.value);
+            if (percent === 100) {
+                activeMode = 3; // Fallback to auto if 100%
+            } else {
+                targetBytes = originalBytes * (percent / 100);
+            }
+        }
+
+        // UI Updates for processing
+        btnCompress.disabled = true;
+        settingsPanel.style.opacity = '0.5';
+        settingsPanel.style.pointerEvents = 'none';
+        progressContainer.style.display = 'block';
+        resultsArea.style.display = 'none';
+
+        try {
+            let compressedBytesArray;
+
+            if (activeMode === 3) {
+                // Mode 3: Smart Auto (Lossless structure + metadata cleanup)
+                compressedBytesArray = await compressLossless(currentFileBuffer);
+            } else {
+                // Mode 1 & 2: Rasterization and intelligent recompression (Lossy)
+                compressedBytesArray = await compressLossy(currentFileBuffer, targetBytes);
+            }
+
+            // Fallback safety check: If "compressed" is larger, return a cleaned original
+            if (compressedBytesArray.byteLength >= originalBytes && activeMode !== 3) {
+                updateProgress(90, "Rasterization size overhead detected. Applying lossless optimization instead...");
+                compressedBytesArray = await compressLossless(currentFileBuffer);
+            }
+
+            finalizeCompression(compressedBytesArray);
+
+        } catch (error) {
+            console.error(error);
+            showError('An error occurred during compression: ' + error.message);
+            resetProcessingUI();
+        }
+    }
+
+    // --- Compression Algorithms ---
+
+    // Algorithm 1: Lossless Structural Optimization
+    async function compressLossless(arrayBuffer) {
+        updateProgress(30, "Parsing PDF structure...");
+        const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+        
+        updateProgress(60, "Removing unused metadata and objects...");
+        // Strip metadata to save space
+        pdfDoc.setTitle('');
+        pdfDoc.setAuthor('');
+        pdfDoc.setSubject('');
+        pdfDoc.setKeywords([]);
+        pdfDoc.setProducer('PDF Desired Size Compressor');
+        pdfDoc.setCreator('');
+
+        updateProgress(85, "Re-encoding streams...");
+        // Re-saving with useObjectStreams often heavily compresses structural bloat
+        return await pdfDoc.save({ useObjectStreams: true });
+    }
+
+    // Algorithm 2: Lossy Rasterization with Binary Search Quality adjustment
+    async function compressLossy(arrayBuffer, targetBytes) {
+        updateProgress(10, "Loading PDF rendering engine...");
+        
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        const numPages = pdf.numPages;
+        
+        // Calculate budget per page
+        const targetBytesPerPage = targetBytes / numPages;
+        
+        const newPdf = await PDFDocument.create();
+        
+        for (let i = 1; i <= numPages; i++) {
+            updateProgress(10 + Math.round((i / numPages) * 70), `Optimizing page ${i} of ${numPages}...`);
+            
+            const page = await pdf.getPage(i);
+            
+            // Allow larger scales up to 4.0 so we can accurately hit MB targets instead of capping at KB.
+            const scalesToTry = [4.0, 3.0, 2.0, 1.5, 1.0, 0.7, 0.5, 0.3];
+            let bestDataUrl = null;
+            let finalViewport = null;
+            let lastUsedScale = null;
+
+            for (let s = 0; s < scalesToTry.length; s++) {
+                let currentScale = scalesToTry[s];
+                let baseViewport = page.getViewport({ scale: 1.0 });
+                
+                // Safety logic: Prevent crashing on mobile by keeping max canvas area around 16 Megapixels
+                const MAX_CANVAS_AREA = 16777216; 
+                const baseArea = baseViewport.width * baseViewport.height;
+                const maxAllowedScale = Math.sqrt(MAX_CANVAS_AREA / baseArea);
+                
+                if (currentScale > maxAllowedScale) {
+                    currentScale = maxAllowedScale;
+                }
+                
+                // If we've already adjusted a previous scale to max safety limit, skip duplicate tests
+                if (lastUsedScale !== null && Math.abs(lastUsedScale - currentScale) < 0.01) continue;
+                lastUsedScale = currentScale;
+
+                const viewport = page.getViewport({ scale: currentScale }); 
+                
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                
+                // Render page to canvas
+                await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                
+                // --- Intelligent Quality Optimization (Binary Search) ---
+                let minQ = 0.01; // Absolute floor to destroy quality if forced to
+                let maxQ = 0.9;
+                let localBestUrl = canvas.toDataURL('image/jpeg', maxQ);
+                let localBestDiff = Infinity;
+                
+                // Quick check: if the lowest quality at this specific resolution is STILL too big, move down a scale resolution completely
+                let byteSizeAtLowest = Math.round((canvas.toDataURL('image/jpeg', minQ).length - 22) * 3 / 4);
+                if (byteSizeAtLowest > targetBytesPerPage && s < scalesToTry.length - 1) {
+                    continue; // Skip binary search and try a smaller physical rendering scale
+                }
+                
+                // 5 iterations to hone in on the target size
+                for (let step = 0; step < 5; step++) {
+                    let testQ = (minQ + maxQ) / 2;
+                    let dataUrl = canvas.toDataURL('image/jpeg', testQ);
+                    
+                    // Approximate base64 size to byte size
+                    let byteSize = Math.round((dataUrl.length - 22) * 3 / 4);
+                    let diff = Math.abs(byteSize - targetBytesPerPage);
+                    
+                    if (diff < localBestDiff) {
+                        localBestDiff = diff;
+                        localBestUrl = dataUrl;
+                    }
+                    
+                    if (byteSize > targetBytesPerPage) {
+                        maxQ = testQ; // File too big, lower quality
+                    } else {
+                        minQ = testQ; // File smaller than needed, can afford higher quality
+                    }
+                }
+
+                bestDataUrl = localBestUrl;
+                finalViewport = viewport;
+                break; // Found the best matching image for this page at this scale, break scale loop
+            }
+            
+            // Convert base64 to Uint8Array for pdf-lib
+            const base64Data = bestDataUrl.split(',')[1];
+            const binaryString = atob(base64Data);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let j = 0; j < len; j++) {
+                bytes[j] = binaryString.charCodeAt(j);
+            }
+            
+            const embeddedImage = await newPdf.embedJpg(bytes);
+            const newPage = newPdf.addPage([finalViewport.width, finalViewport.height]);
+            
+            newPage.drawImage(embeddedImage, {
+                x: 0,
+                y: 0,
+                width: finalViewport.width,
+                height: finalViewport.height,
+            });
+        }
+        
+        updateProgress(90, "Finalizing new document...");
+        return await newPdf.save({ useObjectStreams: true });
+    }
+
+    // --- Finalization ---
+
+    function finalizeCompression(compressedBytesArray) {
+        updateProgress(100, "Done!");
+        
+        const originalSizeStr = formatBytes(currentFile.size);
+        const newSizeStr = formatBytes(compressedBytesArray.byteLength);
+        
+        let savedPercent = 0;
+        if (compressedBytesArray.byteLength < currentFile.size) {
+            savedPercent = ((currentFile.size - compressedBytesArray.byteLength) / currentFile.size * 100).toFixed(1);
+        }
+        
+        // Update DOM
+        resOriginal.textContent = originalSizeStr;
+        resNew.textContent = newSizeStr;
+        resSaved.textContent = savedPercent > 0 ? `${savedPercent}%` : '0%';
+        resSaved.className = savedPercent > 0 ? 'stat-value success-text' : 'stat-value';
+        
+        if (savedPercent <= 0) {
+            showError("The file is already highly optimized. Further compression would unnecessarily alter structure without benefits.");
+        }
+
+        // Create Blob and URL
+        const blob = new Blob([compressedBytesArray], { type: 'application/pdf' });
+        if (compressedBlobUrl) URL.revokeObjectURL(compressedBlobUrl);
+        compressedBlobUrl = URL.createObjectURL(blob);
+        
+        // Setup Download button
+        btnDownload.onclick = () => {
+            const a = document.createElement('a');
+            a.href = compressedBlobUrl;
+            a.download = currentFile.name.replace('.pdf', '-compressed.pdf');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        };
+        
+        // Reveal Results
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+            resultsArea.style.display = 'block';
+            resetProcessingUI();
+        }, 500);
+    }
+
+    function resetProcessingUI() {
+        btnCompress.disabled = false;
+        settingsPanel.style.opacity = '1';
+        settingsPanel.style.pointerEvents = 'auto';
+    }
+
+</script>
+</body>
+</html>
